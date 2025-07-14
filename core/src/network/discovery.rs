@@ -260,6 +260,11 @@ mod tests {
             device_name: "Test Device".to_string(),
             device_type: DeviceType::Desktop,
             storage_path: ":memory:".to_string(),
+            device_id: "test_id".to_string(),
+            discovery_port: 8888,
+            capabilities: vec![],
+            transport_port: 8889,
+            security_level: crate::types::SecurityLevel::Standard,
         };
 
         let discovery = DeviceDiscovery::new(&config);

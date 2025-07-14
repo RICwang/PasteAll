@@ -780,11 +780,7 @@ impl FileTransfer {
     
     /// 计算传输时间（秒）
     pub fn transfer_duration(&self) -> Option<u64> {
-        if let Some(end) = self.end_time {
-            Some(end - self.start_time)
-        } else {
-            None
-        }
+        self.end_time.map(|end| end - self.start_time)
     }
     
     /// 计算传输速度（字节/秒）
@@ -1144,7 +1140,7 @@ mod type_tests {
         assert_eq!(progress.progress_percentage(), 50.0);
         
         // Complete transfer
-        let progress = transfer.update_progress(10);
+        let _progress = transfer.update_progress(10);
         assert_eq!(transfer.status, TransferStatus::Completed);
         assert!(transfer.end_time.is_some());
         

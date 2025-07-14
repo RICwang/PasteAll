@@ -55,7 +55,7 @@ impl Storage {
             )",
             [],
         )
-        .map_err(|e| Error::Database(e))?;
+        .map_err(Error::Database)?;
 
         // 创建密钥表
         conn.execute(
@@ -67,7 +67,7 @@ impl Storage {
             )",
             [],
         )
-        .map_err(|e| Error::Database(e))?;
+        .map_err(Error::Database)?;
 
         // 创建历史记录表
         conn.execute(
@@ -82,7 +82,7 @@ impl Storage {
             )",
             [],
         )
-        .map_err(|e| Error::Database(e))?;
+        .map_err(Error::Database)?;
 
         Ok(())
     }
@@ -119,7 +119,7 @@ impl Storage {
                 timestamp
             ],
         )
-        .map_err(|e| Error::Database(e))?;
+        .map_err(Error::Database)?;
 
         Ok(())
     }
@@ -168,7 +168,7 @@ impl Storage {
                 },
             )
             .optional()
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         Ok(result)
     }
@@ -185,7 +185,7 @@ impl Storage {
 
         let mut stmt = conn
             .prepare("SELECT id, name, device_type, public_key FROM devices")
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -216,7 +216,7 @@ impl Storage {
                     trusted: false,
                 })
             })
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         let mut devices = Vec::new();
         for device_result in rows {
@@ -240,10 +240,10 @@ impl Storage {
         };
 
         conn.execute("DELETE FROM keys WHERE device_id = ?", params![device_id])
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         conn.execute("DELETE FROM devices WHERE id = ?", params![device_id])
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         Ok(())
     }
@@ -268,7 +268,7 @@ impl Storage {
              VALUES (?, ?, ?)",
             params![device_id, key_data, timestamp],
         )
-        .map_err(|e| Error::Database(e))?;
+        .map_err(Error::Database)?;
 
         Ok(())
     }
@@ -293,7 +293,7 @@ impl Storage {
                 },
             )
             .optional()
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         Ok(result)
     }
@@ -324,7 +324,7 @@ impl Storage {
              VALUES (?, ?, ?, ?, ?)",
             params![device_id, content_type, content_hash, metadata, timestamp],
         )
-        .map_err(|e| Error::Database(e))?;
+        .map_err(Error::Database)?;
 
         Ok(())
     }
@@ -347,7 +347,7 @@ impl Storage {
                  ORDER BY h.timestamp DESC
                  LIMIT ?",
             )
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         let rows = stmt
             .query_map([limit as i64], |row| {
@@ -367,13 +367,13 @@ impl Storage {
                     timestamp: timestamp as u64,
                 })
             })
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         let mut entries = Vec::new();
         for entry_result in rows {
             match entry_result {
                 Ok(entry) => entries.push(entry),
-                Err(e) => error!("获取历史记录失败: {:?}", e),
+                Err(e) => error!("获取历史记录失败: {e:?}"),
             }
         }
 
@@ -391,7 +391,7 @@ impl Storage {
         };
 
         conn.execute("DELETE FROM history", [])
-            .map_err(|e| Error::Database(e))?;
+            .map_err(Error::Database)?;
 
         Ok(())
     }
@@ -437,6 +437,14 @@ mod tests {
             device_type: DeviceType::Desktop,
             public_key: "test_key".to_string(),
             online: true,
+            app_version: "1.0.0".to_string(),
+            description: "Test Description".to_string(),
+            capabilities: vec![],
+            os_type: crate::types::OsType::MacOS,
+            os_version: "1.0".to_string(),
+            last_seen: 0,
+            trusted: false,
+            paired: false,
         };
 
         // 保存设备

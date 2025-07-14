@@ -48,7 +48,7 @@ impl ClipboardWatcher {
         let clipboard = match Clipboard::new() {
             Ok(cb) => Arc::new(Mutex::new(cb)),
             Err(e) => {
-                error!("创建剪贴板实例失败: {:?}", e);
+                error!("创建剪贴板实例失败: {e:?}");
                 return Err(Error::Clipboard("创建剪贴板实例失败".to_string()));
             }
         };
@@ -83,7 +83,7 @@ impl ClipboardWatcher {
                 tokio::select! {
                     _ = interval.tick() => {
                         if let Err(e) = Self::check_clipboard_change(clipboard.clone(), last_content.clone(), &callback).await {
-                            error!("检查剪贴板变化出错: {:?}", e);
+                            error!("检查剪贴板变化出错: {e:?}");
                         }
                     }
                     _ = stop_rx.recv() => {
@@ -101,7 +101,7 @@ impl ClipboardWatcher {
     pub async fn stop(&mut self) -> Result<()> {
         if let Some(stop_tx) = self.stop_tx.take() {
             if let Err(e) = stop_tx.send(()).await {
-                error!("发送停止信号失败: {:?}", e);
+                error!("发送停止信号失败: {e:?}");
                 return Err(Error::Clipboard("停止剪贴板监听器失败".to_string()));
             }
         }
@@ -126,7 +126,7 @@ impl ClipboardWatcher {
 
         // 2. 尝试读取文本
         match clipboard.get_text() {
-            Ok(text) => return Ok(ClipboardContent::Text(text)),
+            Ok(text) => Ok(ClipboardContent::Text(text)),
             Err(_) => {
                 // 3. 文本获取失败，尝试读取图片
                 match clipboard.get_image() {
@@ -440,7 +440,6 @@ fn set_clipboard_file_paths(_paths: &[String]) -> Result<()> {
 mod tests {
     use super::*;
     use std::sync::mpsc;
-    use std::time::Duration;
 
     #[test]
     fn test_clipboard_content_equality() {
@@ -469,7 +468,7 @@ mod tests {
     async fn test_clipboard_watcher_start_stop() {
         let mut watcher = ClipboardWatcher::new().unwrap();
         
-        let (tx, rx) = mpsc::channel();
+        let (tx, _rx) = mpsc::channel();
         
         // 创建回调函数
         let callback = Box::new(move |event: ClipboardEvent| {
