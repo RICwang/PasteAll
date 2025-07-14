@@ -1,0 +1,58 @@
+name: Desktop CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop-ci.yml'
+
+jobs:
+  lint:
+    name: 代码检查
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 设置 Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+          
+      - name: 安装依赖
+        run: cd desktop && npm ci
+        
+      - name: 运行 ESLint
+        run: cd desktop && npm run lint
+        
+  build:
+    name: 构建
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 设置 Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+          
+      - name: 安装依赖
+        run: cd desktop && npm ci
+        
+      - name: 构建应用
+        run: cd desktop && npm run build

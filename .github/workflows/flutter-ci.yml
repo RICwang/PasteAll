@@ -1,0 +1,105 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/flutter-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/flutter-ci.yml'
+
+jobs:
+  analyze:
+    name: 代码分析
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 设置 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.10.0'
+          channel: 'stable'
+          
+      - name: 获取依赖
+        run: cd mobile && flutter pub get
+        
+      - name: 分析代码
+        run: cd mobile && flutter analyze
+        
+  test:
+    name: 测试
+    needs: analyze
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 设置 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.10.0'
+          channel: 'stable'
+          
+      - name: 获取依赖
+        run: cd mobile && flutter pub get
+        
+      - name: 运行测试
+        run: cd mobile && flutter test
+        
+  build-android:
+    name: 构建 Android
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 设置 Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+          
+      - name: 设置 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.10.0'
+          channel: 'stable'
+          
+      - name: 获取依赖
+        run: cd mobile && flutter pub get
+        
+      - name: 构建 APK
+        run: cd mobile && flutter build apk --release --split-per-abi
+        
+      - name: 上传 APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-apk
+          path: mobile/build/app/outputs/flutter-apk/*.apk
+          
+  build-ios:
+    name: 构建 iOS
+    needs: test
+    runs-on: macos-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: 设置 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.10.0'
+          channel: 'stable'
+          
+      - name: 获取依赖
+        run: cd mobile && flutter pub get
+        
+      - name: 构建 iOS
+        run: cd mobile && flutter build ios --release --no-codesign
