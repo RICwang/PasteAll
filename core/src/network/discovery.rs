@@ -34,16 +34,12 @@ impl DeviceDiscovery {
     pub fn new(config: &Config) -> Result<Self> {
         // 这里使用UUID作为设备ID
         let _device_id = uuid::Uuid::new_v4().to_string();
-        
+
         // 假设已经生成或加载了密钥对
         // 实际实现中应该从安全存储中加载或生成
         let public_key = "dummy_public_key_base64_encoded";
-        
-        let local_device = DeviceInfo::new(
-            &config.device_name,
-            config.device_type,
-            public_key,
-        );
+
+        let local_device = DeviceInfo::new(&config.device_name, config.device_type, public_key);
 
         Ok(Self {
             local_device,
@@ -79,13 +75,13 @@ impl DeviceDiscovery {
             let socket = match UdpSocket::bind("0.0.0.0:0").await {
                 Ok(s) => s,
                 Err(e) => {
-                    error!("绑定广播套接字失败: {:?}", e);
+                    error!("绑定广播套接字失败: {e:?}");
                     return;
                 }
             };
 
             if let Err(e) = socket.set_broadcast(true) {
-                error!("设置广播套接字选项失败: {:?}", e);
+                error!("设置广播套接字选项失败: {e:?}");
                 return;
             }
 
@@ -108,8 +104,8 @@ impl DeviceDiscovery {
                     .as_secs(),
                 device_type: local_device.device_type,
                 port: broadcast_port,
-                ip_address: None,  // 这里可以获取本地IP地址
-                capabilities: local_device.capabilities.clone(),
+                ip_address: None, // 这里可以获取本地IP地址
+                capabilities: local_device.capabilities,
                 app_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                 system_version: None,
                 protocol_version: "1.0".to_string(),
@@ -118,7 +114,7 @@ impl DeviceDiscovery {
             let packet_json = match serde_json::to_string(&discovery_packet) {
                 Ok(json) => json,
                 Err(e) => {
-                    error!("序列化发现包失败: {:?}", e);
+                    error!("序列化发现包失败: {e:?}");
                     return;
                 }
             };
@@ -126,9 +122,9 @@ impl DeviceDiscovery {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        debug!("发送广播包: {}", packet_json);
+                        debug!("发送广播包: {packet_json}");
                         if let Err(e) = socket.send_to(packet_json.as_bytes(), broadcast_addr).await {
-                            error!("发送广播包失败: {:?}", e);
+                            error!("发送广播包失败: {e:?}");
                         }
                     }
                     _ = stop_rx.recv() => {
@@ -142,10 +138,10 @@ impl DeviceDiscovery {
         // 启动监听任务
         let listen_task = tokio::spawn(async move {
             let local_device = local_device_listen; // 在任务内部使用本地变量
-            let socket = match UdpSocket::bind(format!("0.0.0.0:{}", listen_port)).await {
+            let socket = match UdpSocket::bind(format!("0.0.0.0:{listen_port}")).await {
                 Ok(s) => s,
                 Err(e) => {
-                    error!("绑定监听套接字失败: {:?}", e);
+                    error!("绑定监听套接字失败: {e:?}");
                     return;
                 }
             };
@@ -158,8 +154,8 @@ impl DeviceDiscovery {
                         match result {
                             Ok((len, addr)) => {
                                 if let Ok(packet_str) = String::from_utf8(buf[..len].to_vec()) {
-                                    debug!("收到数据包: {} 来自: {}", packet_str, addr);
-                                    
+                                    debug!("收到数据包: {packet_str} 来自: {addr}");
+
                                     if let Ok(packet) = serde_json::from_str::<DiscoveryPacket>(&packet_str) {
                                         // 忽略自己发送的包
                                         if packet.device_id != local_device.id {
@@ -178,13 +174,13 @@ impl DeviceDiscovery {
                                                 description: None,
                                                 trusted: false,
                                             };
-                                            
+
                                             // 更新设备列表
                                             {
                                                 let mut devices_map = devices.lock().unwrap();
                                                 devices_map.insert(device.id.clone(), device.clone());
                                             }
-                                            
+
                                             // 触发回调
                                             callback(device);
                                         }
@@ -192,7 +188,7 @@ impl DeviceDiscovery {
                                 }
                             }
                             Err(e) => {
-                                error!("接收数据包失败: {:?}", e);
+                                error!("接收数据包失败: {e:?}");
                             }
                         }
                     }
@@ -214,7 +210,7 @@ impl DeviceDiscovery {
     pub async fn stop(&mut self) -> Result<()> {
         if let Some(stop_tx) = self.stop_tx.take() {
             if let Err(e) = stop_tx.send(()).await {
-                error!("发送停止信号失败: {:?}", e);
+                error!("发送停止信号失败: {e:?}");
                 return Err(Error::Discovery("停止设备发现服务失败".to_string()));
             }
         }
@@ -227,7 +223,7 @@ impl DeviceDiscovery {
         let devices = match self.devices.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取设备列表锁失败: {:?}", e);
+                error!("获取设备列表锁失败: {e:?}");
                 return Vec::new();
             }
         };
@@ -240,7 +236,7 @@ impl DeviceDiscovery {
         let devices = match self.devices.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取设备列表锁失败: {:?}", e);
+                error!("获取设备列表锁失败: {e:?}");
                 return None;
             }
         };
@@ -262,9 +258,9 @@ mod tests {
             storage_path: ":memory:".to_string(),
             device_id: "test_id".to_string(),
             discovery_port: 8888,
-            capabilities: vec![],
-            transport_port: 8889,
-            security_level: crate::types::SecurityLevel::Standard,
+            capabilities: crate::types::DeviceCapabilities::default(),
+            listen_port: 8889,
+            options: crate::types::ConfigOptions::default(),
         };
 
         let discovery = DeviceDiscovery::new(&config);

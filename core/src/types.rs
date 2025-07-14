@@ -1,9 +1,9 @@
 //! 基础类型和常量定义模块
 //!
 //! PasteAll 核心类型模块提供了整个应用所需的基本数据结构和类型定义。
-//! 
+//!
 //! 本模块包含以下主要类型：
-//! 
+//!
 //! - 设备相关：`DeviceType`, `DeviceInfo`, `DeviceCapabilities`
 //! - 内容相关：`ContentType`, `ContentPacket`, `ContentMetadata`
 //! - 配对相关：`PairingStatus`, `ConnectionStatus`, `AuthRequestPacket`
@@ -12,21 +12,21 @@
 //! - 配置相关：`Config`, `ConfigOptions`, `SecurityPolicy`
 //! - 通知相关：`NotificationType`, `Notification`, `NotificationAction`
 //! - 消息相关：`Message`, `MessageType`
-//! 
+//!
 //! 所有类型均实现了 `Serialize` 和 `Deserialize` trait，方便在网络传输和存储中使用。
-//! 
+//!
 //! # 示例
-//! 
+//!
 //! ```
 //! use pasteall_core::types::{DeviceInfo, DeviceType};
-//! 
+//!
 //! // 创建一个新的设备信息
 //! let device = DeviceInfo::new(
 //!     "我的设备",
 //!     DeviceType::Desktop,
 //!     "base64_encoded_public_key"
 //! );
-//! 
+//!
 //! assert_eq!(device.name, "我的设备");
 //! assert_eq!(device.device_type, DeviceType::Desktop);
 //! ```
@@ -125,20 +125,22 @@ impl DeviceInfo {
             system_version: None,
             app_version: None,
             capabilities: DeviceCapabilities::default(),
-            last_seen: Some(std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()),
+            last_seen: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            ),
             pairing_status: PairingStatus::Unpaired,
             description: None,
             trusted: false,
         }
     }
-    
+
     /// 创建带有详细信息的设备信息
     pub fn with_details(
-        name: &str, 
-        device_type: DeviceType, 
+        name: &str,
+        device_type: DeviceType,
         public_key: &str,
         ip_address: Option<String>,
         system_version: Option<String>,
@@ -155,51 +157,55 @@ impl DeviceInfo {
             system_version,
             app_version,
             capabilities,
-            last_seen: Some(std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()),
+            last_seen: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            ),
             pairing_status: PairingStatus::Unpaired,
             description: None,
             trusted: false,
         }
     }
-    
+
     /// 设置设备在线状态并更新最后在线时间
     pub fn set_online(&mut self, online: bool) {
         self.online = online;
         if online {
-            self.last_seen = Some(std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs());
+            self.last_seen = Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            );
         }
     }
-    
+
     /// 更新设备信息
     pub fn update_from(&mut self, other: &DeviceInfo) {
         self.name = other.name.clone();
         self.device_type = other.device_type;
         self.online = other.online;
-        
+
         if let Some(ip) = &other.ip_address {
             self.ip_address = Some(ip.clone());
         }
-        
+
         if let Some(sv) = &other.system_version {
             self.system_version = Some(sv.clone());
         }
-        
+
         if let Some(av) = &other.app_version {
             self.app_version = Some(av.clone());
         }
-        
+
         self.capabilities = other.capabilities;
-        
+
         if let Some(ls) = other.last_seen {
             self.last_seen = Some(ls);
         }
-        
+
         if let Some(desc) = &other.description {
             self.description = Some(desc.clone());
         }
@@ -428,14 +434,14 @@ pub enum MessageType {
     /// 配对请求
     PairingRequest,
     /// 配对响应
-    PairingResponse { 
+    PairingResponse {
         /// 是否接受配对请求
-        accepted: bool 
+        accepted: bool,
     },
     /// 文本传输
-    TextTransfer { 
+    TextTransfer {
         /// 待传输的文本内容
-        text: String 
+        text: String,
     },
     /// 文件传输开始
     FileTransferStart {
@@ -481,11 +487,11 @@ pub enum MessageType {
     /// 心跳包
     Heartbeat,
     /// 错误消息
-    Error { 
+    Error {
         /// 错误代码
-        code: u16, 
+        code: u16,
         /// 错误消息描述
-        message: String 
+        message: String,
     },
 }
 
@@ -532,7 +538,7 @@ impl Message {
             expires_at: 0,
         }
     }
-    
+
     /// 设置消息过期时间
     pub fn with_expiry(mut self, seconds_from_now: u64) -> Self {
         if seconds_from_now > 0 {
@@ -540,13 +546,16 @@ impl Message {
         }
         self
     }
-    
+
     /// 创建响应消息
     pub fn create_response(&self, message_type: MessageType) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             message_type,
-            sender_id: self.receiver_id.clone().unwrap_or_else(|| "unknown".to_string()),
+            sender_id: self
+                .receiver_id
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
             receiver_id: Some(self.sender_id.clone()),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -557,18 +566,18 @@ impl Message {
             expires_at: 0,
         }
     }
-    
+
     /// 检查消息是否已过期
     pub fn is_expired(&self) -> bool {
         if self.expires_at == 0 {
             return false;
         }
-        
+
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-            
+
         self.expires_at < now
     }
 }
@@ -689,15 +698,15 @@ pub struct FileTransfer {
 impl FileTransfer {
     /// 创建新的文件传输描述
     pub fn new(
-        filename: &str, 
-        size: u64, 
-        mime_type: &str, 
-        sender_id: &str, 
+        filename: &str,
+        size: u64,
+        mime_type: &str,
+        sender_id: &str,
         receiver_id: &str,
         chunk_size: u32,
     ) -> Self {
         let total_chunks = ((size as f64) / (chunk_size as f64)).ceil() as u32;
-        
+
         Self {
             id: Uuid::new_v4().to_string(),
             filename: filename.to_string(),
@@ -718,22 +727,24 @@ impl FileTransfer {
             storage_path: None,
         }
     }
-    
+
     /// 更新传输进度
     pub fn update_progress(&mut self, completed_chunks: u32) -> TransferProgress {
         self.completed_chunks = completed_chunks;
-        
+
         // 如果全部完成，更新状态和结束时间
         if self.completed_chunks >= self.total_chunks {
             self.status = TransferStatus::Completed;
-            self.end_time = Some(std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs());
+            self.end_time = Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            );
         } else if self.status == TransferStatus::Initializing {
             self.status = TransferStatus::InProgress;
         }
-        
+
         // 返回进度信息
         TransferProgress {
             id: self.id.clone(),
@@ -743,15 +754,17 @@ impl FileTransfer {
             device_id: self.receiver_id.clone(),
         }
     }
-    
+
     /// 标记传输失败
     pub fn mark_failed(&mut self) -> TransferProgress {
         self.status = TransferStatus::Failed;
-        self.end_time = Some(std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs());
-            
+        self.end_time = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        );
+
         TransferProgress {
             id: self.id.clone(),
             bytes_transferred: (self.completed_chunks as u64) * (self.chunk_size as u64),
@@ -760,15 +773,17 @@ impl FileTransfer {
             device_id: self.receiver_id.clone(),
         }
     }
-    
+
     /// 标记传输取消
     pub fn mark_canceled(&mut self) -> TransferProgress {
         self.status = TransferStatus::Canceled;
-        self.end_time = Some(std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs());
-            
+        self.end_time = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        );
+
         TransferProgress {
             id: self.id.clone(),
             bytes_transferred: (self.completed_chunks as u64) * (self.chunk_size as u64),
@@ -777,21 +792,21 @@ impl FileTransfer {
             device_id: self.receiver_id.clone(),
         }
     }
-    
+
     /// 计算传输时间（秒）
     pub fn transfer_duration(&self) -> Option<u64> {
         self.end_time.map(|end| end - self.start_time)
     }
-    
+
     /// 计算传输速度（字节/秒）
     pub fn transfer_speed(&self) -> Option<f64> {
         let bytes_transferred = (self.completed_chunks as u64) * (self.chunk_size as u64);
-        
+
         // 如果没有传输字节或者没有结束时间，返回None
         if bytes_transferred == 0 {
             return None;
         }
-        
+
         let duration = if let Some(end) = self.end_time {
             end - self.start_time
         } else {
@@ -799,14 +814,15 @@ impl FileTransfer {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs() - self.start_time
+                .as_secs()
+                - self.start_time
         };
-        
+
         // 避免除以0
         if duration == 0 {
             return None;
         }
-        
+
         Some(bytes_transferred as f64 / duration as f64)
     }
 }
@@ -897,28 +913,28 @@ pub enum NotificationActionType {
     /// 拒绝操作
     Reject,
     /// 打开文件
-    OpenFile { 
+    OpenFile {
         /// 文件路径
-        path: String 
+        path: String,
     },
     /// 打开URL
-    OpenUrl { 
+    OpenUrl {
         /// 网址链接
-        url: String 
+        url: String,
     },
     /// 查看详情
-    ViewDetails { 
+    ViewDetails {
         /// 详情类型
-        details_type: String, 
+        details_type: String,
         /// 详情对象ID
-        id: String 
+        id: String,
     },
     /// 自定义操作
-    Custom { 
+    Custom {
         /// 自定义命令
-        command: String, 
+        command: String,
         /// 命令参数
-        params: String 
+        params: String,
     },
 }
 
@@ -946,25 +962,25 @@ impl Notification {
             actions: Vec::new(),
         }
     }
-    
+
     /// 添加设备ID关联
     pub fn with_device_id(mut self, device_id: &str) -> Self {
         self.device_id = Some(device_id.to_string());
         self
     }
-    
+
     /// 添加传输ID关联
     pub fn with_transfer_id(mut self, transfer_id: &str) -> Self {
         self.transfer_id = Some(transfer_id.to_string());
         self
     }
-    
+
     /// 添加通知操作
     pub fn with_action(mut self, action: NotificationAction) -> Self {
         self.actions.push(action);
         self
     }
-    
+
     /// 标记为已读
     pub fn mark_as_read(&mut self) {
         self.is_read = true;
@@ -980,7 +996,7 @@ impl NotificationAction {
             action_type: NotificationActionType::Accept,
         }
     }
-    
+
     /// 创建拒绝操作
     pub fn reject(label: &str) -> Self {
         Self {
@@ -989,45 +1005,49 @@ impl NotificationAction {
             action_type: NotificationActionType::Reject,
         }
     }
-    
+
     /// 创建打开文件操作
     pub fn open_file(label: &str, path: &str) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             label: label.to_string(),
-            action_type: NotificationActionType::OpenFile { path: path.to_string() },
+            action_type: NotificationActionType::OpenFile {
+                path: path.to_string(),
+            },
         }
     }
-    
+
     /// 创建打开URL操作
     pub fn open_url(label: &str, url: &str) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             label: label.to_string(),
-            action_type: NotificationActionType::OpenUrl { url: url.to_string() },
+            action_type: NotificationActionType::OpenUrl {
+                url: url.to_string(),
+            },
         }
     }
-    
+
     /// 创建查看详情操作
     pub fn view_details(label: &str, details_type: &str, id: &str) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             label: label.to_string(),
-            action_type: NotificationActionType::ViewDetails { 
-                details_type: details_type.to_string(), 
-                id: id.to_string() 
+            action_type: NotificationActionType::ViewDetails {
+                details_type: details_type.to_string(),
+                id: id.to_string(),
             },
         }
     }
-    
+
     /// 创建自定义操作
     pub fn custom(label: &str, command: &str, params: &str) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             label: label.to_string(),
-            action_type: NotificationActionType::Custom { 
-                command: command.to_string(), 
-                params: params.to_string() 
+            action_type: NotificationActionType::Custom {
+                command: command.to_string(),
+                params: params.to_string(),
             },
         }
     }
@@ -1039,25 +1059,21 @@ mod tests {
 
     #[test]
     fn test_device_info_creation() {
-        let device = DeviceInfo::new(
-            "测试设备",
-            DeviceType::Desktop,
-            "base64_encoded_public_key",
-        );
-        
+        let device = DeviceInfo::new("测试设备", DeviceType::Desktop, "base64_encoded_public_key");
+
         assert_eq!(device.name, "测试设备");
         assert_eq!(device.device_type, DeviceType::Desktop);
         assert_eq!(device.public_key, "base64_encoded_public_key");
         assert!(device.online);
     }
-    
+
     #[test]
     fn test_config_default() {
         let config = Config::default();
         assert_eq!(config.device_name, "未命名设备");
         assert_eq!(config.device_type, DeviceType::Unknown);
     }
-    
+
     #[test]
     fn test_transfer_progress() {
         let progress = TransferProgress {
@@ -1067,10 +1083,10 @@ mod tests {
             status: TransferStatus::InProgress,
             device_id: "device1".to_string(),
         };
-        
+
         assert_eq!(progress.progress_percentage(), 50.0);
     }
-    
+
     #[test]
     fn test_device_capabilities() {
         let caps = DeviceCapabilities::default();
@@ -1087,67 +1103,66 @@ mod type_tests {
     fn test_message_creation_and_expiry() {
         let msg = Message::new(
             "sender1",
-            MessageType::TextTransfer { text: "Hello".to_string() },
+            MessageType::TextTransfer {
+                text: "Hello".to_string(),
+            },
             true,
             Some("receiver1"),
         );
-        
+
         assert_eq!(msg.sender_id, "sender1");
         assert!(matches!(msg.message_type, MessageType::TextTransfer { .. }));
         assert_eq!(msg.receiver_id, Some("receiver1".to_string()));
         assert!(msg.require_ack);
         assert!(!msg.is_expired());
-        
+
         // Test with expiry
         let msg_with_expiry = Message::new(
             "sender1",
-            MessageType::TextTransfer { text: "Hello".to_string() },
+            MessageType::TextTransfer {
+                text: "Hello".to_string(),
+            },
             true,
             Some("receiver1"),
-        ).with_expiry(1); // 1 second expiry
-        
+        )
+        .with_expiry(1); // 1 second expiry
+
         // Sleep for 2 seconds to ensure it's expired
         std::thread::sleep(std::time::Duration::from_secs(2));
         assert!(msg_with_expiry.is_expired());
-        
+
         // Test response message
         let response = msg.create_response(MessageType::PairingResponse { accepted: true });
         assert_eq!(response.sender_id, "receiver1");
         assert_eq!(response.receiver_id, Some("sender1".to_string()));
         assert_eq!(response.related_message_id, Some(msg.id));
     }
-    
+
     #[test]
     fn test_file_transfer() {
-        let mut transfer = FileTransfer::new(
-            "test.txt",
-            1000,
-            "text/plain",
-            "sender1",
-            "receiver1",
-            100,
-        );
-        
+        let mut transfer =
+            FileTransfer::new("test.txt", 1000, "text/plain", "sender1", "receiver1", 100);
+
         assert_eq!(transfer.filename, "test.txt");
         assert_eq!(transfer.size, 1000);
         assert_eq!(transfer.total_chunks, 10);
         assert_eq!(transfer.status, TransferStatus::Initializing);
-        
+
         // Update progress
         let progress = transfer.update_progress(5);
         assert_eq!(transfer.status, TransferStatus::InProgress);
         assert_eq!(progress.bytes_transferred, 500);
         assert_eq!(progress.progress_percentage(), 50.0);
-        
+
         // Complete transfer
         let _progress = transfer.update_progress(10);
         assert_eq!(transfer.status, TransferStatus::Completed);
         assert!(transfer.end_time.is_some());
-        
+
         // Transfer duration should be available
         assert!(transfer.transfer_duration().is_some());
     }
-    
+
     #[test]
     fn test_notification_creation() {
         let notification = Notification::new(
@@ -1159,25 +1174,31 @@ mod type_tests {
         .with_device_id("device1")
         .with_action(NotificationAction::accept("接受"))
         .with_action(NotificationAction::reject("拒绝"));
-        
-        assert_eq!(notification.notification_type, NotificationType::TextReceived);
+
+        assert_eq!(
+            notification.notification_type,
+            NotificationType::TextReceived
+        );
         assert_eq!(notification.title, "新消息");
         assert_eq!(notification.device_id, Some("device1".to_string()));
         assert_eq!(notification.actions.len(), 2);
         assert!(!notification.is_read);
-        
+
         // Test action creation
         let open_action = NotificationAction::open_file("打开文件", "/tmp/file.txt");
-        assert!(matches!(open_action.action_type, NotificationActionType::OpenFile { .. }));
+        assert!(matches!(
+            open_action.action_type,
+            NotificationActionType::OpenFile { .. }
+        ));
     }
-    
+
     #[test]
     fn test_device_capabilities() {
         let caps = DeviceCapabilities::default();
         assert!(caps.supports_files);
         assert!(caps.supports_wifi_direct);
         assert_eq!(caps.max_file_size, 1024);
-        
+
         // Test security policy default
         let policy = SecurityPolicy::default();
         assert_eq!(policy, SecurityPolicy::AlwaysAsk);

@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 /// 初始化加密模块
 pub fn init() {
     if let Err(e) = sodiumoxide::init() {
-        error!("初始化sodiumoxide失败: {:?}", e);
+        error!("初始化sodiumoxide失败: {e:?}");
         panic!("初始化加密库失败");
     }
 }
@@ -44,9 +44,8 @@ impl KeyPair {
 
     /// 从Base64编码字符串解析公钥
     pub fn public_key_from_base64(base64_str: &str) -> Result<PublicKey> {
-        let bytes = base64::decode(base64_str).map_err(|e| {
-            Error::Crypto(format!("解析公钥Base64编码失败: {}", e))
-        })?;
+        let bytes = base64::decode(base64_str)
+            .map_err(|e| Error::Crypto(format!("解析公钥Base64编码失败: {e}")))?;
 
         if bytes.len() != box_::PUBLICKEYBYTES {
             return Err(Error::Crypto(format!(
@@ -97,7 +96,7 @@ impl SignKeyPair {
     pub fn sign(&self, data: &[u8]) -> sign::Signature {
         sign::sign_detached(data, &self.secret_key)
     }
-    
+
     /// 验证签名
     pub fn verify(&self, signature: &Signature, data: &[u8]) -> bool {
         sign::verify_detached(signature, data, &self.public_key)
@@ -110,9 +109,8 @@ impl SignKeyPair {
 
     /// 从Base64编码字符串解析公钥
     pub fn public_key_from_base64(base64_str: &str) -> Result<sign::PublicKey> {
-        let bytes = base64::decode(base64_str).map_err(|e| {
-            Error::Crypto(format!("解析公钥Base64编码失败: {}", e))
-        })?;
+        let bytes = base64::decode(base64_str)
+            .map_err(|e| Error::Crypto(format!("解析公钥Base64编码失败: {e}")))?;
 
         if bytes.len() != sign::PUBLICKEYBYTES {
             return Err(Error::Crypto(format!(
@@ -178,31 +176,38 @@ impl CryptoManager {
     pub fn get_signing_key_base64(&self) -> String {
         self.signing_keypair.public_key_base64()
     }
-    
+
     /// 获取公钥信息（向后兼容）
     pub fn get_public_keys(&self) -> (String, String) {
-        (
-            self.get_public_key_base64(),
-            self.get_signing_key_base64(),
-        )
+        (self.get_public_key_base64(), self.get_signing_key_base64())
     }
 
     /// 为设备生成共享密钥
-    pub fn generate_shared_key(&self, device_id: &str, remote_public_key: &PublicKey) -> Result<()> {
+    pub fn generate_shared_key(
+        &self,
+        device_id: &str,
+        remote_public_key: &PublicKey,
+    ) -> Result<()> {
         // 获取锁
         let mut keys = match self.shared_keys.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取共享密钥锁失败: {:?}", e);
+                error!("获取共享密钥锁失败: {e:?}");
                 return Err(Error::Crypto("获取共享密钥锁失败".to_string()));
             }
         };
 
         // 保存密钥
-        keys.insert(device_id.to_string(), (remote_public_key.clone(), self.encryption_keypair.secret_key.clone()));
+        keys.insert(
+            device_id.to_string(),
+            (
+                *remote_public_key,
+                self.encryption_keypair.secret_key.clone(),
+            ),
+        );
         Ok(())
     }
-    
+
     /// 计算与远程设备的共享密钥（向后兼容）
     pub fn compute_shared_key(&self, device_id: &str, remote_public_key: &PublicKey) -> Result<()> {
         self.generate_shared_key(device_id, remote_public_key)
@@ -215,7 +220,7 @@ impl CryptoManager {
             let keys = match self.shared_keys.lock() {
                 Ok(guard) => guard,
                 Err(e) => {
-                    error!("获取共享密钥锁失败: {:?}", e);
+                    error!("获取共享密钥锁失败: {e:?}");
                     return Err(Error::Crypto("获取共享密钥锁失败".to_string()));
                 }
             };
@@ -224,8 +229,7 @@ impl CryptoManager {
                 Some(key) => key.clone(),
                 None => {
                     return Err(Error::Crypto(format!(
-                        "未找到设备的共享密钥: {}",
-                        device_id
+                        "未找到设备的共享密钥: {device_id}"
                     )))
                 }
             }
@@ -265,7 +269,7 @@ impl CryptoManager {
             let keys = match self.shared_keys.lock() {
                 Ok(guard) => guard,
                 Err(e) => {
-                    error!("获取共享密钥锁失败: {:?}", e);
+                    error!("获取共享密钥锁失败: {e:?}");
                     return Err(Error::Crypto("获取共享密钥锁失败".to_string()));
                 }
             };
@@ -274,8 +278,7 @@ impl CryptoManager {
                 Some(key) => key.clone(),
                 None => {
                     return Err(Error::Crypto(format!(
-                        "未找到设备的共享密钥: {}",
-                        device_id
+                        "未找到设备的共享密钥: {device_id}"
                     )))
                 }
             }
@@ -296,12 +299,7 @@ impl CryptoManager {
     }
 
     /// 验证签名
-    pub fn verify(
-        &self,
-        signature: &[u8],
-        data: &[u8],
-        public_key_base64: &str,
-    ) -> Result<bool> {
+    pub fn verify(&self, signature: &[u8], data: &[u8], public_key_base64: &str) -> Result<bool> {
         // 解析验证密钥
         let public_key = SignKeyPair::public_key_from_base64(public_key_base64)?;
 
@@ -353,9 +351,9 @@ mod tests {
     fn test_keypair_generation() {
         let keypair = KeyPair::generate();
         let base64 = keypair.public_key_base64();
-        
+
         assert!(!base64.is_empty());
-        
+
         let result = KeyPair::public_key_from_base64(&base64);
         assert!(result.is_ok());
     }
@@ -364,19 +362,19 @@ mod tests {
     fn test_signing() {
         let keypair = SignKeyPair::generate();
         let data = b"test data";
-        
+
         let signature = keypair.sign(data);
         let valid = keypair.verify(&signature, data);
-        
+
         assert!(valid);
     }
-    
+
     #[test]
     fn test_crypto_manager() {
         init();
         let manager = CryptoManager::new();
         let (enc_key, sign_key) = manager.get_public_keys();
-        
+
         assert!(!enc_key.is_empty());
         assert!(!sign_key.is_empty());
     }

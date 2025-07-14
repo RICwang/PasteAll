@@ -13,11 +13,21 @@
 9. 清理未使用的导入 - 移除各模块中未使用的log导入和其他未使用的导入
 10. 添加缺失的文档注释 - 为types.rs中的各结构体字段添加了文档注释
 11. 修复crypto/mod.rs文件中的语法错误和重复导入
-12. 添加缺失的Android FFI模块实现
+12. 添加缺失的Android和iOS FFI模块实现
 13. 使用更现代的Rust格式化输出方式（如`error!("错误: {e:?}")`替代`error!("错误: {:?}", e)`）
 14. 在storage/mod.rs中优化map_err闭包为函数指针（`map_err(Error::Database)`）
 15. 修复types.rs中的手动Option::map实现
 16. 在test代码中补全结构体必要字段
+17. 修复Config结构体初始化 - 更新字段名从transport_port到listen_port
+18. 修复SecurityLevel枚举未定义问题 - 更新Config不再使用security_level字段
+19. 修复DeviceCapabilities类型与Vec<_>不匹配 - 使用DeviceCapabilities::default()代替vec![]
+20. 修复clippy::clone-on-copy警告 - 使用*remote_public_key代替remote_public_key.clone()
+21. 修复clippy::needless-return警告 - 移除不必要的return语句
+22. 修复clippy::uninlined-format-args警告 - 使用更简洁的格式化语法（如`"错误: {e:?}"`代替`"错误: {:?}", e`）
+23. 修复clippy::unnecessary-cast警告 - 移除冗余类型转换
+24. 修复storage/mod.rs中DeviceInfo测试初始化 - 使用正确的字段和类型
+25. 修复clipboard/mod.rs中的格式化字符串 - 在AppleScript模板中使用`"{escaped_path}"`代替`"{}", escaped_path`
+26. 修复crypto/mod.rs中剩余的格式化字符串 - 更新错误消息使用`"{device_id}"`代替`"{}", device_id`
 
 ## 当前状态
 

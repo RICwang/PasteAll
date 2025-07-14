@@ -1,5 +1,5 @@
 //! PasteAll核心库 - 跨平台近距离设备复制粘贴工具的核心功能实现
-//! 
+//!
 //! 本模块包含以下核心功能：
 //! - 剪贴板监听与操作
 //! - 加密和安全
@@ -16,14 +16,14 @@ pub mod clipboard;
 pub mod crypto;
 /// 错误处理相关模块
 pub mod error;
+/// FFI绑定相关模块
+pub mod ffi;
 /// 网络通信协议相关模块
 pub mod network;
 /// 存储相关模块
 pub mod storage;
 /// 基础通用类型和常量
 pub mod types;
-/// FFI绑定相关模块
-pub mod ffi;
 
 use log::info;
 
@@ -43,19 +43,19 @@ impl PasteAll {
     /// 启动PasteAll服务
     pub async fn start(&self) -> Result<(), error::Error> {
         info!("启动PasteAll核心服务");
-        
+
         // 初始化剪贴板监听
         let _clipboard_watcher = clipboard::ClipboardWatcher::new()?;
-        
+
         // 初始化设备发现服务
         let _device_discovery = network::discovery::DeviceDiscovery::new(&self.config)?;
-        
+
         // 初始化存储
         let _storage = storage::Storage::new(&self.config.storage_path)?;
-        
+
         // 初始化加密模块
         crypto::init();
-        
+
         info!("PasteAll核心服务启动完成");
         Ok(())
     }

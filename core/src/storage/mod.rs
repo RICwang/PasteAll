@@ -20,8 +20,8 @@ impl Storage {
         let conn = match Connection::open(db_path) {
             Ok(conn) => conn,
             Err(e) => {
-                error!("打开数据库失败: {:?}", e);
-                return Err(Error::Storage(format!("打开数据库失败: {}", e)));
+                error!("打开数据库失败: {e:?}");
+                return Err(Error::Storage(format!("打开数据库失败: {e}")));
             }
         };
 
@@ -39,7 +39,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -92,7 +92,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -129,7 +129,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -178,7 +178,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -222,7 +222,7 @@ impl Storage {
         for device_result in rows {
             match device_result {
                 Ok(device) => devices.push(device),
-                Err(e) => error!("获取设备信息失败: {:?}", e),
+                Err(e) => error!("获取设备信息失败: {e:?}"),
             }
         }
 
@@ -234,7 +234,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -253,7 +253,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -278,7 +278,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -309,7 +309,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -334,7 +334,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -385,7 +385,7 @@ impl Storage {
         let conn = match self.conn.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                error!("获取数据库连接锁失败: {:?}", e);
+                error!("获取数据库连接锁失败: {e:?}");
                 return Err(Error::Storage("获取数据库连接锁失败".to_string()));
             }
         };
@@ -437,14 +437,14 @@ mod tests {
             device_type: DeviceType::Desktop,
             public_key: "test_key".to_string(),
             online: true,
-            app_version: "1.0.0".to_string(),
-            description: "Test Description".to_string(),
-            capabilities: vec![],
-            os_type: crate::types::OsType::MacOS,
-            os_version: "1.0".to_string(),
-            last_seen: 0,
+            ip_address: None,
+            system_version: Some("1.0".to_string()),
+            app_version: Some("1.0.0".to_string()),
+            capabilities: crate::types::DeviceCapabilities::default(),
+            last_seen: Some(0),
+            pairing_status: crate::types::PairingStatus::Unpaired,
+            description: Some("Test Description".to_string()),
             trusted: false,
-            paired: false,
         };
 
         // 保存设备
