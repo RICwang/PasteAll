@@ -1,4 +1,10 @@
-//! 加密与认证模块，提供端到端加密、密钥管理和安全认证功能
+//use crate::error::{Error, Result};
+use log::error;
+use sodiumoxide::crypto:{
+    box_::{self, PublicKey, SecretKey},
+    sealedbox,
+    sign::{self, Signature},
+};模块，提供端到端加密、密钥管理和安全认证功能
 
 use crate::error::{Error, Result};
 use log::{debug, error, info, warn};
@@ -78,7 +84,7 @@ impl Clone for SignKeyPair {
         // 在生产环境中，这可能需要更安全的实现方式
         Self {
             public_key: self.public_key,
-            secret_key: self.secret_key,
+            secret_key: self.secret_key.clone(),
         }
     }
 }
