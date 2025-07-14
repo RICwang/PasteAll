@@ -1,0 +1,67 @@
+[package]
+name = "pasteall_core"
+version = "0.1.0"
+edition = "2021"
+authors = ["PasteAll Team"]
+description = "PasteAll核心库 - 跨平台近距离设备复制粘贴工具"
+license = "MIT"
+
+[lib]
+name = "pasteall_core"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+# 基础依赖
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.10"
+tokio = { version = "1.28", features = ["full"] }
+once_cell = "1.18"
+base64 = "0.13"
+
+# 加密相关
+sodiumoxide = "0.2"
+rand = "0.8"
+uuid = { version = "1.4", features = ["v4", "serde"] }
+
+# FFI相关
+ffi-support = "0.4"
+jni = { version = "0.21", optional = true }
+uniffi = { version = "0.24", optional = true }
+
+# 存储相关
+rusqlite = { version = "0.29", features = ["bundled", "blob"] }
+
+# 网络相关
+tokio-tungstenite = { version = "0.19", features = ["native-tls"] }
+reqwest = { version = "0.11", features = ["json", "stream", "multipart"] }
+
+# 系统相关 - 剪贴板接口
+arboard = "3.2"
+image = { version = "0.24", features = ["png", "jpeg"] }
+
+[features]
+default = ["clipboard-watcher", "device-discovery"]
+clipboard-watcher = []
+device-discovery = []
+android-integration = ["jni"]
+ios-integration = ["uniffi"]
+all = ["clipboard-watcher", "device-discovery", "android-integration", "ios-integration"]
+
+[dev-dependencies]
+tempfile = "3.8"
+criterion = "0.5"
+mockall = "0.11"
+test-log = "0.2"
+pretty_assertions = "1.4"
+
+# 暂时注释掉基准测试，待实现
+# [[bench]]
+# name = "crypto_benchmarks"
+# harness = false
+# 
+# [[bench]]
+# name = "network_benchmarks"
+# harness = false

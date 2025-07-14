@@ -1,0 +1,43 @@
+{
+  "name": "pasteall-desktop",
+  "version": "0.1.0",
+  "description": "PasteAll桌面端应用 - 跨平台近距离设备复制粘贴工具",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "lint": "eslint src",
+    "test": "jest"
+  },
+  "author": "PasteAll Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^26.0.0",
+    "electron-builder": "^24.6.3",
+    "eslint": "^8.47.0",
+    "jest": "^29.6.4"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "ffi-napi": "^4.0.3",
+    "node-addon-api": "^7.0.0",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0",
+    "winston": "^3.10.0"
+  },
+  "build": {
+    "appId": "com.pasteall.desktop",
+    "productName": "PasteAll",
+    "mac": {
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    }
+  }
+}
