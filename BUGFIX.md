@@ -28,6 +28,8 @@
 24. 修复storage/mod.rs中DeviceInfo测试初始化 - 使用正确的字段和类型
 25. 修复clipboard/mod.rs中的格式化字符串 - 在AppleScript模板中使用`"{escaped_path}"`代替`"{}", escaped_path`
 26. 修复crypto/mod.rs中剩余的格式化字符串 - 更新错误消息使用`"{device_id}"`代替`"{}", device_id`
+27. 修复剪贴板测试在CI环境中失败的问题 - 添加ci_tests特性并在无剪贴板环境中条件性地跳过测试
+28. 修复crypto/mod.rs中的格式化问题 - 将多行错误返回简化为单行，符合cargo fmt标准
 
 ## 当前状态
 

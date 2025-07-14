@@ -227,11 +227,7 @@ impl CryptoManager {
 
             match keys.get(device_id) {
                 Some(key) => key.clone(),
-                None => {
-                    return Err(Error::Crypto(format!(
-                        "未找到设备的共享密钥: {device_id}"
-                    )))
-                }
+                None => return Err(Error::Crypto(format!("未找到设备的共享密钥: {device_id}"))),
             }
         };
 
@@ -276,11 +272,7 @@ impl CryptoManager {
 
             match keys.get(device_id) {
                 Some(key) => key.clone(),
-                None => {
-                    return Err(Error::Crypto(format!(
-                        "未找到设备的共享密钥: {device_id}"
-                    )))
-                }
+                None => return Err(Error::Crypto(format!("未找到设备的共享密钥: {device_id}"))),
             }
         };
 

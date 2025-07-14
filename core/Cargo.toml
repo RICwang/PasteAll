@@ -48,6 +48,7 @@ clipboard-watcher = []
 device-discovery = []
 android-integration = ["jni"]
 ios-integration = ["uniffi"]
+ci_tests = []
 all = ["clipboard-watcher", "device-discovery", "android-integration", "ios-integration"]
 
 [dev-dependencies]

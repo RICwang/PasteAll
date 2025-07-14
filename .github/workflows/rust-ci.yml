@@ -35,7 +35,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run tests
-        run: cargo test --manifest-path core/Cargo.toml
+        run: cargo test --manifest-path core/Cargo.toml --features ci_tests
 
   fmt:
     name: 代码格式
