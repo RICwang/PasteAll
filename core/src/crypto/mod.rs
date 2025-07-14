@@ -1,13 +1,7 @@
-//use crate::error::{Error, Result};
-use log::error;
-use sodiumoxide::crypto:{
-    box_::{self, PublicKey, SecretKey},
-    sealedbox,
-    sign::{self, Signature},
-};模块，提供端到端加密、密钥管理和安全认证功能
+//! 加密与认证模块，提供端到端加密、密钥管理和安全认证功能
 
 use crate::error::{Error, Result};
-use log::{debug, error, info, warn};
+use log::error;
 use sodiumoxide::crypto::{
     box_::{self, PublicKey, SecretKey},
     sealedbox,
