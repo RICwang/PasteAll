@@ -489,16 +489,19 @@ mod tests {
             println!("注意: 在CI环境中跳过剪贴板监听器启动/停止测试");
             return;
         }
-        
+
         // 尝试创建剪贴板监听器，如果失败就跳过测试
         let watcher = match ClipboardWatcher::new() {
             Ok(w) => w,
             Err(e) => {
-                println!("注意: 跳过剪贴板监听器测试，因为无法创建剪贴板实例: {:?}", e);
+                println!(
+                    "注意: 跳过剪贴板监听器测试，因为无法创建剪贴板实例: {:?}", 
+                    e
+                );
                 return;
             }
         };
-        
+
         let mut watcher = watcher;
         let (tx, _rx) = mpsc::channel();
 
@@ -523,7 +526,7 @@ mod tests {
             println!("注意: 在CI环境中跳过剪贴板内容获取/设置测试");
             return;
         }
-        
+
         // 尝试创建剪贴板监听器，如果失败就跳过测试
         let watcher = match ClipboardWatcher::new() {
             Ok(w) => w,
@@ -532,7 +535,7 @@ mod tests {
                 return;
             }
         };
-        
+
         let mut watcher = watcher;
 
         // 设置文本内容
