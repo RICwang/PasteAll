@@ -248,6 +248,77 @@ fn default_discovery_port() -> u16 {
     45678
 }
 
+/// 传输状态枚举
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TransferStatus {
+    /// 准备开始
+    Starting,
+    /// 进行中
+    InProgress,
+    /// 已暂停
+    Paused,
+    /// 已完成
+    Completed,
+    /// 已取消
+    Cancelled,
+    /// 传输失败
+    Failed(String),
+}
+
+/// 文件传输进度
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferProgress {
+    /// 传输ID
+    pub id: String,
+    /// 文件名
+    pub file_name: String,
+    /// 文件总大小（字节）
+    pub total_bytes: u64,
+    /// 已传输字节数
+    pub transferred_bytes: u64,
+    /// 传输状态
+    pub status: TransferStatus,
+}
+
+impl TransferProgress {
+    /// 创建新的传输进度
+    pub fn new(id: String, file_name: String, total_bytes: u64) -> Self {
+        Self {
+            id,
+            file_name,
+            total_bytes,
+            transferred_bytes: 0,
+            status: TransferStatus::Starting,
+        }
+    }
+    
+    /// 计算传输百分比
+    pub fn percentage(&self) -> u8 {
+        if self.total_bytes == 0 {
+            return 0;
+        }
+        ((self.transferred_bytes as f64 / self.total_bytes as f64) * 100.0) as u8
+    }
+    
+    /// 是否已完成
+    pub fn is_completed(&self) -> bool {
+        matches!(self.status, TransferStatus::Completed)
+    }
+    
+    /// 是否失败
+    pub fn is_failed(&self) -> bool {
+        matches!(self.status, TransferStatus::Failed(_))
+    }
+    
+    /// 获取失败原因
+    pub fn failure_reason(&self) -> Option<&str> {
+        match &self.status {
+            TransferStatus::Failed(reason) => Some(reason),
+            _ => None,
+        }
+    }
+}
+
 /// 生成UUID
 fn generate_uuid() -> String {
     Uuid::new_v4().to_string()
@@ -370,44 +441,11 @@ pub enum ConnectionStatus {
 }
 
 /// 传输进度更新
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TransferProgress {
-    /// 传输ID
-    pub id: String,
-    /// 已传输字节数
-    pub bytes_transferred: u64,
-    /// 总字节数
-    pub total_bytes: u64,
-    /// 传输状态
-    pub status: TransferStatus,
-    /// 设备ID
-    pub device_id: String,
-}
+// 删除重复定义的结构体
 
-impl TransferProgress {
-    /// 计算传输进度百分比
-    pub fn progress_percentage(&self) -> f32 {
-        if self.total_bytes == 0 {
-            return 0.0;
-        }
-        (self.bytes_transferred as f32 / self.total_bytes as f32) * 100.0
-    }
-}
+// 删除重复实现
 
-/// 传输状态
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TransferStatus {
-    /// 初始化中
-    Initializing,
-    /// 进行中
-    InProgress,
-    /// 已完成
-    Completed,
-    /// 失败
-    Failed,
-    /// 已取消
-    Canceled,
-}
+// 删除重复定义的TransferStatus
 
 /// 设备连接信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -719,7 +757,7 @@ impl FileTransfer {
                 .unwrap_or_default()
                 .as_secs(),
             end_time: None,
-            status: TransferStatus::Initializing,
+            status: TransferStatus::Starting,
             chunk_size,
             total_chunks,
             completed_chunks: 0,
@@ -741,23 +779,23 @@ impl FileTransfer {
                     .unwrap_or_default()
                     .as_secs(),
             );
-        } else if self.status == TransferStatus::Initializing {
+        } else if self.status == TransferStatus::Starting {
             self.status = TransferStatus::InProgress;
         }
 
         // 返回进度信息
         TransferProgress {
             id: self.id.clone(),
-            bytes_transferred: (self.completed_chunks as u64) * (self.chunk_size as u64),
+            file_name: self.filename.clone(),
+            transferred_bytes: (self.completed_chunks as u64) * (self.chunk_size as u64),
             total_bytes: self.size,
-            status: self.status,
-            device_id: self.receiver_id.clone(),
+            status: self.status.clone(),
         }
     }
 
     /// 标记传输失败
     pub fn mark_failed(&mut self) -> TransferProgress {
-        self.status = TransferStatus::Failed;
+        self.status = TransferStatus::Failed("传输失败".to_string());
         self.end_time = Some(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -767,16 +805,16 @@ impl FileTransfer {
 
         TransferProgress {
             id: self.id.clone(),
-            bytes_transferred: (self.completed_chunks as u64) * (self.chunk_size as u64),
+            file_name: self.filename.clone(),
+            transferred_bytes: (self.completed_chunks as u64) * (self.chunk_size as u64),
             total_bytes: self.size,
-            status: self.status,
-            device_id: self.receiver_id.clone(),
+            status: self.status.clone(),
         }
     }
 
     /// 标记传输取消
     pub fn mark_canceled(&mut self) -> TransferProgress {
-        self.status = TransferStatus::Canceled;
+        self.status = TransferStatus::Cancelled;
         self.end_time = Some(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -786,10 +824,10 @@ impl FileTransfer {
 
         TransferProgress {
             id: self.id.clone(),
-            bytes_transferred: (self.completed_chunks as u64) * (self.chunk_size as u64),
+            file_name: self.filename.clone(),
+            transferred_bytes: (self.completed_chunks as u64) * (self.chunk_size as u64),
             total_bytes: self.size,
-            status: self.status,
-            device_id: self.receiver_id.clone(),
+            status: self.status.clone(),
         }
     }
 
@@ -800,10 +838,10 @@ impl FileTransfer {
 
     /// 计算传输速度（字节/秒）
     pub fn transfer_speed(&self) -> Option<f64> {
-        let bytes_transferred = (self.completed_chunks as u64) * (self.chunk_size as u64);
+        let transferred_bytes = (self.completed_chunks as u64) * (self.chunk_size as u64);
 
         // 如果没有传输字节或者没有结束时间，返回None
-        if bytes_transferred == 0 {
+        if transferred_bytes == 0 {
             return None;
         }
 
@@ -823,7 +861,7 @@ impl FileTransfer {
             return None;
         }
 
-        Some(bytes_transferred as f64 / duration as f64)
+        Some(transferred_bytes as f64 / duration as f64)
     }
 }
 
@@ -1078,10 +1116,10 @@ mod tests {
     fn test_transfer_progress() {
         let progress = TransferProgress {
             id: "test_id".to_string(),
-            bytes_transferred: 50,
+            file_name: "test.txt".to_string(),
+            transferred_bytes: 50,
             total_bytes: 100,
             status: TransferStatus::InProgress,
-            device_id: "device1".to_string(),
         };
 
         assert_eq!(progress.progress_percentage(), 50.0);
@@ -1146,12 +1184,12 @@ mod type_tests {
         assert_eq!(transfer.filename, "test.txt");
         assert_eq!(transfer.size, 1000);
         assert_eq!(transfer.total_chunks, 10);
-        assert_eq!(transfer.status, TransferStatus::Initializing);
+        assert_eq!(transfer.status, TransferStatus::Starting);
 
         // Update progress
         let progress = transfer.update_progress(5);
         assert_eq!(transfer.status, TransferStatus::InProgress);
-        assert_eq!(progress.bytes_transferred, 500);
+        assert_eq!(progress.transferred_bytes, 500);
         assert_eq!(progress.progress_percentage(), 50.0);
 
         // Complete transfer

@@ -21,6 +21,10 @@ tokio = { version = "1.28", features = ["full"] }
 once_cell = "1.18"
 base64 = "0.13"
 
+# 蓝牙相关
+btleplug = "0.11"  # 跨平台BLE库
+futures = "0.3"    # 用于异步BLE操作
+
 # 加密相关
 sodiumoxide = "0.2"
 rand = "0.8"
@@ -33,6 +37,7 @@ uniffi = { version = "0.24", optional = true }
 
 # 存储相关
 rusqlite = { version = "0.29", features = ["bundled", "blob"] }
+dirs = "5.0"
 
 # 网络相关
 tokio-tungstenite = { version = "0.19", features = ["native-tls"] }
@@ -41,6 +46,8 @@ reqwest = { version = "0.11", features = ["json", "stream", "multipart"] }
 # 系统相关 - 剪贴板接口
 arboard = "3.2"
 image = { version = "0.24", features = ["png", "jpeg"] }
+windows = { version = "0.51", features = ["Win32_System_Com", "Win32_System_DataExchange", "Win32_UI_Shell", "Win32_System_Memory", "Win32_Foundation"], optional = true }
+percent-encoding = { version = "2.3", optional = true }
 
 [features]
 default = ["clipboard-watcher", "device-discovery"]
@@ -49,7 +56,16 @@ device-discovery = []
 android-integration = ["jni"]
 ios-integration = ["uniffi"]
 ci_tests = []
-all = ["clipboard-watcher", "device-discovery", "android-integration", "ios-integration"]
+windows-clipboard = ["windows"]
+linux-clipboard = ["percent-encoding"]
+all = [
+    "clipboard-watcher",
+    "device-discovery",
+    "android-integration",
+    "ios-integration",
+    "windows-clipboard",
+    "linux-clipboard"
+]
 
 [dev-dependencies]
 tempfile = "3.8"

@@ -8,7 +8,10 @@ use sodiumoxide::crypto::{
     sign::{self, Signature},
 };
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+
+// 全局密钥管理器单例
+static CRYPTO_MANAGER: OnceLock<CryptoManager> = OnceLock::new();
 
 /// 初始化加密模块
 pub fn init() {
@@ -16,6 +19,50 @@ pub fn init() {
         error!("初始化sodiumoxide失败: {e:?}");
         panic!("初始化加密库失败");
     }
+    
+    // 初始化全局密钥管理器
+    let _ = CRYPTO_MANAGER.get_or_init(|| CryptoManager::new());
+}
+
+/// 获取全局密钥管理器引用
+fn get_crypto_manager() -> &'static CryptoManager {
+    CRYPTO_MANAGER.get().expect("加密模块未初始化")
+}
+
+/// 获取公钥（Base64编码）
+pub fn get_public_key() -> Result<String> {
+    Ok(get_crypto_manager().get_public_key_base64())
+}
+
+/// 签名数据
+pub fn sign(data: &str, _public_key: &str) -> Result<String> {
+    // 在实际应用中，需要验证public_key与当前设备匹配
+    let signature = get_crypto_manager().sign(data.as_bytes());
+    Ok(base64::encode(&signature))
+}
+
+/// 验证签名
+pub fn verify_signature(data: &str, signature: &str, public_key: &str) -> Result<bool> {
+    let signature_bytes = base64::decode(signature)
+        .map_err(|e| Error::Crypto(format!("解析签名失败: {e}")))?;
+    
+    get_crypto_manager().verify(&signature_bytes, data.as_bytes(), public_key)
+}
+
+/// 加密数据
+pub fn encrypt(device_id: &str, data: &[u8]) -> Result<Vec<u8>> {
+    get_crypto_manager().encrypt(device_id, data)
+}
+
+/// 解密数据
+pub fn decrypt(device_id: &str, encrypted_data: &[u8]) -> Result<Vec<u8>> {
+    get_crypto_manager().decrypt(device_id, encrypted_data)
+}
+
+/// 为设备生成共享密钥
+pub fn generate_shared_key(device_id: &str, remote_public_key_base64: &str) -> Result<()> {
+    let remote_public_key = KeyPair::public_key_from_base64(remote_public_key_base64)?;
+    get_crypto_manager().generate_shared_key(device_id, &remote_public_key)
 }
 
 /// 密钥对

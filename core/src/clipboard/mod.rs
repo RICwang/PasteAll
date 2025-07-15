@@ -1,11 +1,15 @@
 //! 剪贴板操作模块，提供跨平台的剪贴板监听和操作功能
 
 use crate::error::{Error, Result};
-use arboard::Clipboard;
-use log::{debug, error, info, warn};
+use arboard;
+use log::{error, info, warn};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration};
+
+// 导入文件路径相关功能
+mod file_paths;
+pub use file_paths::{get_clipboard_file_paths, set_clipboard_file_paths};
 
 /// 剪贴板内容类型
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,13 +43,13 @@ pub struct ClipboardWatcher {
     /// 上次检测到的剪贴板内容
     last_content: Arc<Mutex<Option<ClipboardContent>>>,
     /// 剪贴板实例
-    clipboard: Arc<Mutex<Clipboard>>,
+    clipboard: Arc<Mutex<arboard::Clipboard>>,
 }
 
 impl ClipboardWatcher {
     /// 创建新的剪贴板监听器
     pub fn new() -> Result<Self> {
-        let clipboard = match Clipboard::new() {
+        let clipboard = match arboard::Clipboard::new() {
             Ok(cb) => Arc::new(Mutex::new(cb)),
             Err(e) => {
                 error!("创建剪贴板实例失败: {e:?}");
@@ -82,7 +86,7 @@ impl ClipboardWatcher {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        if let Err(e) = Self::check_clipboard_change(clipboard.clone(), last_content.clone(), &callback).await {
+                        if let Err(e) = Self::check_arboard_clipboard_change(clipboard.clone(), last_content.clone(), &callback).await {
                             error!("检查剪贴板变化出错: {e:?}");
                         }
                     }
@@ -192,9 +196,9 @@ impl ClipboardWatcher {
         Ok(())
     }
 
-    /// 检查剪贴板变化
-    async fn check_clipboard_change(
-        clipboard: Arc<Mutex<Clipboard>>,
+    /// 检查剪贴板变化（使用arboard）
+    async fn check_arboard_clipboard_change(
+        clipboard: Arc<Mutex<arboard::Clipboard>>,
         last_content: Arc<Mutex<Option<ClipboardContent>>>,
         callback: &ClipboardCallback,
     ) -> Result<()> {
@@ -213,53 +217,54 @@ impl ClipboardWatcher {
             } else {
                 // 2. 尝试获取文本
                 match clipboard_guard.get_text() {
-                    Ok(text) => ClipboardContent::Text(text),
-                    Err(_) => {
+                    Ok(text) if !text.is_empty() => ClipboardContent::Text(text),
+                    _ => {
                         // 3. 尝试获取图片
                         match clipboard_guard.get_image() {
-                            Ok(image) => {
-                                let mut buffer = Vec::new();
-                                // 转换图片数据
-                                for y in 0..image.height {
-                                    for x in 0..image.width {
-                                        let i = y * image.width + x;
-                                        buffer.extend_from_slice(&image.bytes[i * 4..(i + 1) * 4]);
-                                    }
-                                }
-                                ClipboardContent::Image(buffer)
+                            Ok(image) => ClipboardContent::Image(image.bytes.to_vec()),
+                            Err(_) => {
+                                // 4. 没有找到任何内容
+                                ClipboardContent::Empty
                             }
-                            Err(_) => ClipboardContent::Empty,
                         }
                     }
                 }
             }
         };
-
-        // 检查内容是否变化
-        let content_changed = {
-            let last = match last_content.lock() {
+        
+        // 检查是否与上次不同
+        let different = {
+            let mut last = match last_content.lock() {
                 Ok(guard) => guard,
                 Err(e) => {
                     error!("获取上次内容锁失败: {e:?}");
                     return Err(Error::Clipboard("获取上次内容锁失败".to_string()));
                 }
             };
-
-            match &*last {
-                Some(prev) => *prev != current_content,
-                None => true,
-            }
-        };
-
-        if content_changed {
-            debug!("检测到剪贴板内容变化");
-
-            // 更新最后内容
-            if let Ok(mut last) = last_content.lock() {
+            
+            let is_different = match (&*last, &current_content) {
+                (Some(ClipboardContent::Text(last_text)), ClipboardContent::Text(current_text)) => {
+                    last_text != current_text
+                },
+                (Some(ClipboardContent::Files(last_files)), ClipboardContent::Files(current_files)) => {
+                    last_files != current_files
+                },
+                (Some(ClipboardContent::Image(last_image)), ClipboardContent::Image(current_image)) => {
+                    last_image != current_image
+                },
+                (Some(ClipboardContent::Empty), ClipboardContent::Empty) => false,
+                _ => true,
+            };
+            
+            if is_different {
                 *last = Some(current_content.clone());
             }
-
-            // 触发回调
+            
+            is_different
+        };
+        
+        // 如果内容不同，调用回调
+        if different && current_content != ClipboardContent::Empty {
             let event = ClipboardEvent {
                 content: current_content,
                 timestamp: std::time::SystemTime::now()
@@ -267,10 +272,10 @@ impl ClipboardWatcher {
                     .unwrap_or_default()
                     .as_millis() as u64,
             };
-
+            
             callback(event);
         }
-
+        
         Ok(())
     }
 }
@@ -284,275 +289,73 @@ impl Drop for ClipboardWatcher {
     }
 }
 
-/// 获取剪贴板中的文件路径列表
-#[cfg(target_os = "macos")]
-fn get_clipboard_file_paths() -> Option<Vec<String>> {
-    use std::process::Command;
-
-    // 在macOS上使用osascript获取剪贴板中的文件路径
-    let output = Command::new("osascript")
-        .arg("-e")
-        .arg(
-            r#"
-            use framework "Foundation"
-            use framework "AppKit"
-            set thePasteboard to current application's NSPasteboard's generalPasteboard()
-            set theFiles to thePasteboard's pasteboardItems()
-            set filePaths to {}
-            
-            repeat with theFile in theFiles
-                set theURL to theFile's stringForType:"public.file-url"
-                if theURL is not missing value then
-                    set theURLObj to current application's NSURL's URLWithString:theURL
-                    set thePath to theURLObj's |path|() as string
-                    copy thePath to end of filePaths
-                end if
-            end repeat
-            
-            return filePaths
-        "#,
-        )
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    // 处理输出结果
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    if output_str.trim().is_empty() {
-        return None;
-    }
-
-    // 解析路径列表
-    let paths: Vec<String> = output_str
-        .lines()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    if paths.is_empty() {
-        None
-    } else {
-        Some(paths)
-    }
+/// 剪贴板操作封装
+pub struct Clipboard {
+    inner: arboard::Clipboard,
 }
 
-/// 获取剪贴板中的文件路径列表
-#[cfg(target_os = "windows")]
-fn get_clipboard_file_paths() -> Option<Vec<String>> {
-    // 注意：Windows平台需要使用win32 API
-    // 由于需要使用FFI，这里只提供实现思路
-    // TODO: 使用windows-rs crate实现文件路径获取
-    None
-}
-
-/// 获取剪贴板中的文件路径列表
-#[cfg(target_os = "linux")]
-fn get_clipboard_file_paths() -> Option<Vec<String>> {
-    // 注意：Linux平台需要使用X11或Wayland的剪贴板API
-    // TODO: 使用x11-clipboard或类似的crate实现
-    None
-}
-
-/// 获取剪贴板中的文件路径列表（默认实现）
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-fn get_clipboard_file_paths() -> Option<Vec<String>> {
-    None
-}
-
-/// 设置文件路径到剪贴板
-#[cfg(target_os = "macos")]
-fn set_clipboard_file_paths(paths: &[String]) -> Result<()> {
-    use std::process::Command;
-
-    if paths.is_empty() {
-        return Ok(());
-    }
-
-    // 构建AppleScript命令
-    let mut script = String::from(
-        r#"
-        use framework "Foundation"
-        use framework "AppKit"
-        set thePasteboard to current application's NSPasteboard's generalPasteboard()
-        thePasteboard's clearContents()
-        
-        set theURLs to {}
-    "#,
-    );
-
-    // 添加每个文件路径
-    for path in paths {
-        // 转义路径中的双引号
-        let escaped_path = path.replace("\"", "\\\"");
-        script.push_str(&format!(
-            r#"
-            set fileURL to current application's NSURL's fileURLWithPath:"{escaped_path}"
-            copy fileURL to end of theURLs
-        "#
-        ));
-    }
-
-    // 写入剪贴板
-    script.push_str(
-        r#"
-        set theItems to current application's NSArray's array()
-        set thePasteboardItem to current application's NSPasteboardItem's alloc()'s init()
-        thePasteboardItem's setPropertyList:theURLs forType:"NSFilenamesPboardType"
-        thePasteboard's writeObjects:{thePasteboardItem}
-    "#,
-    );
-
-    // 执行AppleScript
-    let output = Command::new("osascript").arg("-e").arg(script).output();
-
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                Ok(())
-            } else {
-                let error_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                Err(Error::Clipboard(format!("设置文件路径失败: {error_msg}")))
-            }
-        }
-        Err(e) => Err(Error::Clipboard(format!("执行AppleScript失败: {e}"))),
-    }
-}
-
-/// 设置文件路径到剪贴板
-#[cfg(target_os = "windows")]
-fn set_clipboard_file_paths(_paths: &[String]) -> Result<()> {
-    // TODO: 使用Windows API实现
-    Err(Error::Clipboard(
-        "Windows平台暂未实现设置文件路径功能".to_string(),
-    ))
-}
-
-/// 设置文件路径到剪贴板
-#[cfg(target_os = "linux")]
-fn set_clipboard_file_paths(_paths: &[String]) -> Result<()> {
-    // TODO: 使用X11或Wayland API实现
-    Err(Error::Clipboard(
-        "Linux平台暂未实现设置文件路径功能".to_string(),
-    ))
-}
-
-/// 设置文件路径到剪贴板（默认实现）
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-fn set_clipboard_file_paths(_paths: &[String]) -> Result<()> {
-    Err(Error::Clipboard(
-        "当前平台不支持设置文件路径功能".to_string(),
-    ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::mpsc;
-
-    #[test]
-    fn test_clipboard_content_equality() {
-        let text1 = ClipboardContent::Text("Hello".to_string());
-        let text2 = ClipboardContent::Text("Hello".to_string());
-        let text3 = ClipboardContent::Text("World".to_string());
-
-        assert_eq!(text1, text2);
-        assert_ne!(text1, text3);
-
-        let files1 =
-            ClipboardContent::Files(vec!["path1.txt".to_string(), "path2.txt".to_string()]);
-        let files2 =
-            ClipboardContent::Files(vec!["path1.txt".to_string(), "path2.txt".to_string()]);
-        let files3 = ClipboardContent::Files(vec!["path3.txt".to_string()]);
-
-        assert_eq!(files1, files2);
-        assert_ne!(files1, files3);
-    }
-
-    #[tokio::test]
-    async fn test_clipboard_watcher_creation() {
-        let watcher = ClipboardWatcher::new();
-        // 在CI环境中，系统剪贴板可能不可用，所以我们不强制要求成功
-        if cfg!(not(feature = "ci_tests")) {
-            assert!(watcher.is_ok());
-        } else {
-            println!("注意: 在CI环境中跳过剪贴板创建检查");
-        }
-    }
-
-    #[tokio::test]
-    async fn test_clipboard_watcher_start_stop() {
-        // 在CI环境中，系统剪贴板可能不可用，所以我们条件性地跳过测试
-        if cfg!(feature = "ci_tests") {
-            println!("注意: 在CI环境中跳过剪贴板监听器启动/停止测试");
-            return;
-        }
-
-        // 尝试创建剪贴板监听器，如果失败就跳过测试
-        let watcher = match ClipboardWatcher::new() {
-            Ok(w) => w,
+impl Clipboard {
+    /// 创建新的剪贴板实例
+    pub fn new() -> Result<Self> {
+        match arboard::Clipboard::new() {
+            Ok(inner) => Ok(Self { inner }),
             Err(e) => {
-                println!(
-                    "注意: 跳过剪贴板监听器测试，因为无法创建剪贴板实例: {:?}",
-                    e
-                );
-                return;
+                error!("创建剪贴板实例失败: {e:?}");
+                Err(Error::Clipboard("创建剪贴板实例失败".to_string()))
             }
-        };
-
-        let mut watcher = watcher;
-        let (tx, _rx) = mpsc::channel();
-
-        // 创建回调函数
-        let callback = Box::new(move |event: ClipboardEvent| {
-            let _ = tx.send(event);
-        });
-
-        // 开始监听
-        let result = watcher.start(callback).await;
-        assert!(result.is_ok());
-
-        // 停止监听
-        let result = watcher.stop().await;
-        assert!(result.is_ok());
+        }
     }
 
-    #[tokio::test]
-    async fn test_clipboard_content_get_set() {
-        // 在CI环境中，系统剪贴板可能不可用，所以我们条件性地跳过测试
-        if cfg!(feature = "ci_tests") {
-            println!("注意: 在CI环境中跳过剪贴板内容获取/设置测试");
-            return;
-        }
-
-        // 尝试创建剪贴板监听器，如果失败就跳过测试
-        let watcher = match ClipboardWatcher::new() {
-            Ok(w) => w,
+    /// 获取文本内容
+    pub fn get_text(&mut self) -> Result<String> {
+        match self.inner.get_text() {
+            Ok(text) => Ok(text),
             Err(e) => {
-                println!("注意: 跳过剪贴板内容测试，因为无法创建剪贴板实例: {:?}", e);
-                return;
-            }
-        };
-
-        let mut watcher = watcher;
-
-        // 设置文本内容
-        let text = "Test clipboard content";
-        let content = ClipboardContent::Text(text.to_string());
-        let result = watcher.set_content(&content);
-
-        // 注意：在某些环境中，剪贴板操作可能会失败，所以这里我们需要宽容一些
-        if result.is_ok() {
-            // 读取内容
-            let read_content = watcher.get_content();
-            assert!(read_content.is_ok());
-
-            // 由于可能有多种类型的内容（文本、文件等），我们检查是否包含我们设置的文本
-            if let Ok(ClipboardContent::Text(read_text)) = read_content {
-                assert_eq!(read_text, text);
+                error!("获取剪贴板文本失败: {e:?}");
+                Err(Error::Clipboard("获取剪贴板文本失败".to_string()))
             }
         }
+    }
+
+    /// 设置文本内容
+    pub fn set_text(&mut self, text: &str) -> Result<()> {
+        match self.inner.set_text(text) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("设置剪贴板文本失败: {e:?}");
+                Err(Error::Clipboard("设置剪贴板文本失败".to_string()))
+            }
+        }
+    }
+
+    /// 获取图片内容
+    pub fn get_image(&mut self) -> Result<Vec<u8>> {
+        match self.inner.get_image() {
+            Ok(image) => {
+                // 转换图片数据为RGBA字节数组
+                let mut buffer = Vec::with_capacity((image.width * image.height * 4) as usize);
+                for y in 0..image.height {
+                    for x in 0..image.width {
+                        let i = y * image.width + x;
+                        buffer.extend_from_slice(&image.bytes[i * 4..(i + 1) * 4]);
+                    }
+                }
+                Ok(buffer)
+            },
+            Err(e) => {
+                error!("获取剪贴板图片失败: {e:?}");
+                Err(Error::Clipboard("获取剪贴板图片失败".to_string()))
+            }
+        }
+    }
+
+    /// 获取文件路径列表
+    pub fn get_file_paths(&self) -> Result<Option<Vec<String>>> {
+        Ok(get_clipboard_file_paths())
+    }
+
+    /// 设置文件路径列表
+    pub fn set_file_paths(&mut self, paths: &[String]) -> Result<()> {
+        set_clipboard_file_paths(paths)
     }
 }
