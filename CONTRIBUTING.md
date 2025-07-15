@@ -10,6 +10,45 @@
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 开启一个Pull Request
 
+## 开发环境设置
+
+### 通用环境
+
+1. 安装Rust工具链：[rustup.rs](https://rustup.rs/)
+2. 安装Node.js（用于桌面端）：[nodejs.org](https://nodejs.org/)
+3. 安装Flutter SDK（用于移动端）：[flutter.dev](https://flutter.dev/docs/get-started/install)
+
+### 平台特定依赖
+
+#### Linux
+
+在Linux平台上开发需要安装额外的依赖，具体请参考 [LINUX_DEPENDENCIES.md](./LINUX_DEPENDENCIES.md)。
+
+#### macOS
+
+macOS平台通常无需安装额外依赖。
+
+#### Windows
+
+Windows平台无需安装额外依赖，所有必要的库都会通过Cargo和npm自动安装。
+
+### CI环境
+
+在提交代码前，请确保它通过了CI检查。你可以在本地运行：
+
+```bash
+# Rust核心库测试
+cd core
+cargo fmt -- --check
+cargo clippy -- -D warnings
+cargo test
+
+# 桌面端测试
+cd ../desktop
+npm run lint
+npm test
+```
+
 ## 代码规范
 
 请确保你的代码符合项目的代码规范：

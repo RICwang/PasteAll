@@ -86,6 +86,38 @@ cd ./core
 cargo fmt
 cargo check
 cargo clippy
+
+# CI构建检查 - 不同特性组合
+echo "检查不同特性组合的构建情况"
+cargo check --no-default-features
+cargo check --features="clipboard-watcher"
+cargo check --features="device-discovery"
+cargo check --features="windows-clipboard"
+# 在Linux下，如果使用linux-clipboard特性，确保安装了libdbus-1-dev包
+if [ -f /etc/os-release ] && grep -q -i "ubuntu\|debian" /etc/os-release; then
+  echo "在Ubuntu/Debian系统上检查是否安装了libdbus-1-dev"
+  if ! dpkg -l | grep -q libdbus-1-dev; then
+    echo "缺少libdbus-1-dev包，跳过linux-clipboard特性测试"
+  else
+    cargo check --features="linux-clipboard"
+  fi
+elif [ -f /etc/os-release ] && grep -q -i "fedora\|rhel\|centos" /etc/os-release; then
+  echo "在Fedora/RHEL/CentOS系统上检查是否安装了dbus-devel"
+  if ! rpm -qa | grep -q dbus-devel; then
+    echo "缺少dbus-devel包，跳过linux-clipboard特性测试"
+  else
+    cargo check --features="linux-clipboard"
+  fi
+else
+  # 在CI中，如果环境变量CI=true，则跳过linux-clipboard特性测试
+  if [ "$CI" = "true" ]; then
+    echo "在CI环境中跳过linux-clipboard特性测试"
+  else
+    cargo check --features="linux-clipboard"
+  fi
+fi
+
+# 检查完成
 cd ..
 
 echo "修复完成，请检查是否还有其他错误"

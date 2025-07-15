@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable]
+        features: [default, no-features]
+        include:
+          - features: default
+            args: ""
+          - features: no-features
+            args: "--no-default-features"
+
+    steps:
+    - uses: actions/checkout@v3
+      
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+        
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdbus-1-dev pkg-config
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          core/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+      
+    - name: Check formatting
+      working-directory: ./core
+      run: cargo fmt -- --check
+      
+    - name: Build (with ${{ matrix.features }})
+      working-directory: ./core
+      run: cargo build ${{ matrix.args }}
+      
+    - name: Run Clippy (with ${{ matrix.features }})
+      working-directory: ./core
+      run: cargo clippy ${{ matrix.args }} -- -D warnings
+      
+    - name: Run tests (with ${{ matrix.features }})
+      working-directory: ./core
+      run: cargo test ${{ matrix.args }}
+
+  # 可选：添加对特定平台特性的测试
+  platform-features:
+    name: Test Platform Features
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            feature: linux-clipboard
+          - os: windows-latest
+            feature: windows-clipboard
+          - os: macos-latest
+            feature: clipboard-watcher
+
+    steps:
+    - uses: actions/checkout@v3
+      
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+        
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdbus-1-dev pkg-config
+
+    - name: Build with ${{ matrix.feature }}
+      working-directory: ./core
+      run: cargo build --no-default-features --features=${{ matrix.feature }}

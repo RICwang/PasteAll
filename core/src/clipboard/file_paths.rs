@@ -1,6 +1,9 @@
 #[cfg(all(feature = "linux-clipboard", target_os = "linux"))]
 use percent_encoding;
 
+#[cfg(all(feature = "linux-clipboard", target_os = "linux"))]
+use std::process::Command;
+
 use crate::error::{Error, Result};
 
 /// 获取剪贴板中的文件路径
@@ -136,7 +139,14 @@ pub fn get_clipboard_file_paths() -> Option<Vec<String>> {
     #[cfg(all(target_os = "linux", feature = "linux-clipboard"))]
     {
         // Linux通常使用xclip或其他X11工具
-        use std::process::Command;
+        // 检查系统是否安装了xclip
+        let xclip_check = Command::new("which")
+            .arg("xclip")
+            .output();
+            
+        if xclip_check.is_err() || !xclip_check.unwrap().status.success() {
+            return None;
+        }
         
         let output = Command::new("xclip")
             .arg("-selection")
