@@ -107,6 +107,37 @@ flutter pub get
 flutter run
 ```
 
+### 平台特定依赖
+
+#### Linux
+
+在Linux平台上运行PasteAll需要安装额外的依赖，详见 [LINUX_DEPENDENCIES.md](./LINUX_DEPENDENCIES.md)。
+
+### 特殊构建选项
+
+#### CI环境
+
+在持续集成(CI)环境中构建时，可以使用ci特性避免对系统库的依赖：
+
+```bash
+cd core
+cargo build --features="ci"
+```
+
+#### 禁用特定平台功能
+
+可以通过特性标记控制启用哪些平台特定功能：
+
+```bash
+# 不启用Linux剪贴板功能
+cargo build --no-default-features --features="clipboard-watcher,device-discovery,windows-clipboard"
+
+# 只启用基本发现功能
+cargo build --no-default-features --features="device-discovery"
+```
+
+详细的特性配置请参考`Cargo.toml`。
+
 ## 贡献指南
 
 欢迎提交Pull Request或Issue来帮助改进项目。详细的贡献流程和代码规范请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。

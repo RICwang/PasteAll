@@ -37,7 +37,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libdbus-1-dev pkg-config
+        sudo apt-get install -y libdbus-1-dev pkg-config xclip
 
     - name: Cache Cargo dependencies
       uses: actions/cache@v3
@@ -56,15 +56,45 @@ jobs:
       
     - name: Build (with ${{ matrix.features }})
       working-directory: ./core
-      run: cargo build ${{ matrix.args }}
+      run: |
+        # 对于Linux环境，自动添加ci特性
+        if [[ "${{ runner.os }}" == "Linux" ]]; then
+          if [[ "${{ matrix.features }}" == "default" ]]; then
+            cargo build --features=ci
+          else
+            cargo build ${{ matrix.args }} --features=ci
+          fi
+        else
+          cargo build ${{ matrix.args }}
+        fi
       
     - name: Run Clippy (with ${{ matrix.features }})
       working-directory: ./core
-      run: cargo clippy ${{ matrix.args }} -- -D warnings
+      run: |
+        # 对于Linux环境，自动添加ci特性
+        if [[ "${{ runner.os }}" == "Linux" ]]; then
+          if [[ "${{ matrix.features }}" == "default" ]]; then
+            cargo clippy --features=ci -- -D warnings
+          else
+            cargo clippy ${{ matrix.args }} --features=ci -- -D warnings
+          fi
+        else
+          cargo clippy ${{ matrix.args }} -- -D warnings
+        fi
       
     - name: Run tests (with ${{ matrix.features }})
       working-directory: ./core
-      run: cargo test ${{ matrix.args }}
+      run: |
+        # 对于Linux环境，自动添加ci特性
+        if [[ "${{ runner.os }}" == "Linux" ]]; then
+          if [[ "${{ matrix.features }}" == "default" ]]; then
+            cargo test --features=ci
+          else
+            cargo test ${{ matrix.args }} --features=ci
+          fi
+        else
+          cargo test ${{ matrix.args }}
+        fi
 
   # 可选：添加对特定平台特性的测试
   platform-features:
@@ -93,7 +123,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libdbus-1-dev pkg-config
+        sudo apt-get install -y libdbus-1-dev pkg-config xclip
 
     - name: Build with ${{ matrix.feature }}
       working-directory: ./core

@@ -11,6 +11,12 @@ use tokio::time::{self, Duration};
 mod file_paths;
 pub use file_paths::{get_clipboard_file_paths, set_clipboard_file_paths};
 
+// 导入测试环境使用的模拟剪贴板
+#[cfg(feature = "ci")]
+mod mock_clipboard;
+#[cfg(feature = "ci")]
+pub use mock_clipboard::{set_mock_clipboard, get_mock_clipboard, clear_mock_clipboard};
+
 /// 剪贴板内容类型
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClipboardContent {

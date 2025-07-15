@@ -59,6 +59,8 @@ ios-integration = ["uniffi"]
 ci_tests = []
 windows-clipboard = ["windows"]
 linux-clipboard = ["percent-encoding", "libdbus-sys"]
+# CI环境默认不使用linux-clipboard特性，避免依赖问题
+ci = []
 all = [
     "clipboard-watcher",
     "device-discovery",

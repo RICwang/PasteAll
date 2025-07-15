@@ -1,7 +1,7 @@
-#[cfg(all(feature = "linux-clipboard", target_os = "linux"))]
+#[cfg(all(feature = "linux-clipboard", target_os = "linux", not(feature = "ci")))]
 use percent_encoding;
 
-#[cfg(all(feature = "linux-clipboard", target_os = "linux"))]
+#[cfg(all(feature = "linux-clipboard", target_os = "linux", not(feature = "ci")))]
 use std::process::Command;
 
 use crate::error::{Error, Result};
@@ -136,17 +136,33 @@ pub fn get_clipboard_file_paths() -> Option<Vec<String>> {
         None
     }
 
-    #[cfg(all(target_os = "linux", feature = "linux-clipboard"))]
+    #[cfg(all(target_os = "linux", feature = "linux-clipboard", not(feature = "ci")))]
     {
+        use log::{warn, debug, error};
+        
         // Linux通常使用xclip或其他X11工具
         // 检查系统是否安装了xclip
+        debug!("正在检查xclip是否已安装");
+        
+        // 使用which命令检查xclip是否存在
         let xclip_check = Command::new("which")
             .arg("xclip")
             .output();
             
-        if xclip_check.is_err() || !xclip_check.unwrap().status.success() {
-            return None;
+        match xclip_check {
+            Err(e) => {
+                warn!("执行which命令失败: {e}");
+                return None;
+            },
+            Ok(output) => {
+                if !output.status.success() {
+                    warn!("未找到xclip工具，无法获取剪贴板文件路径");
+                    return None;
+                }
+            }
         }
+        
+        debug!("xclip已安装，尝试获取剪贴板内容");
         
         let output = Command::new("xclip")
             .arg("-selection")
@@ -180,7 +196,13 @@ pub fn get_clipboard_file_paths() -> Option<Vec<String>> {
         None
     }
 
-    #[cfg(all(target_os = "linux", not(feature = "linux-clipboard")))]
+    #[cfg(all(target_os = "linux", not(feature = "linux-clipboard"), not(feature = "ci")))]
+    {
+        None
+    }
+    
+    // CI环境下不使用Linux剪贴板功能
+    #[cfg(all(target_os = "linux", feature = "ci"))]
     {
         None
     }
@@ -244,11 +266,33 @@ pub fn set_clipboard_file_paths(paths: &[String]) -> Result<()> {
         }
     }
 
-    #[cfg(all(target_os = "linux", feature = "linux-clipboard"))]
+    #[cfg(all(target_os = "linux", feature = "linux-clipboard", not(feature = "ci")))]
     {
         // Linux实现
         use std::process::{Command, Stdio};
         use std::io::Write;
+        use log::{warn, debug, error};
+        
+        // 检查系统是否安装了xclip
+        debug!("正在检查xclip是否已安装");
+        
+        // 使用which命令检查xclip是否存在
+        let xclip_check = Command::new("which")
+            .arg("xclip")
+            .output();
+            
+        match xclip_check {
+            Err(e) => {
+                warn!("执行which命令失败: {e}");
+                return Err(Error::Clipboard("检查xclip工具失败".to_string()));
+            },
+            Ok(output) => {
+                if !output.status.success() {
+                    warn!("未找到xclip工具，无法设置剪贴板文件路径");
+                    return Err(Error::Clipboard("未找到xclip工具".to_string()));
+                }
+            }
+        }
         
         let mut uri_list = String::new();
         
@@ -256,6 +300,7 @@ pub fn set_clipboard_file_paths(paths: &[String]) -> Result<()> {
             uri_list.push_str(&format!("file://{}\n", path));
         }
         
+        debug!("使用xclip设置剪贴板URI列表");
         let mut child = Command::new("xclip")
             .arg("-selection")
             .arg("clipboard")
@@ -280,9 +325,15 @@ pub fn set_clipboard_file_paths(paths: &[String]) -> Result<()> {
         }
     }
 
-    #[cfg(all(target_os = "linux", not(feature = "linux-clipboard")))]
+    #[cfg(all(target_os = "linux", not(feature = "linux-clipboard"), not(feature = "ci")))]
     {
         Err(Error::Clipboard("Linux剪贴板功能未启用".to_string()))
+    }
+    
+    // CI环境下不使用Linux剪贴板功能
+    #[cfg(all(target_os = "linux", feature = "ci"))]
+    {
+        Err(Error::Clipboard("CI环境不支持Linux剪贴板操作".to_string()))
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
