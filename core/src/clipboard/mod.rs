@@ -17,6 +17,10 @@ mod mock_clipboard;
 #[cfg(feature = "ci")]
 pub use mock_clipboard::{set_mock_clipboard, get_mock_clipboard, clear_mock_clipboard};
 
+// 导入历史记录功能
+mod history;
+pub use history::{ClipboardHistory, HistoryEntry};
+
 /// 剪贴板内容类型
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClipboardContent {
@@ -50,6 +54,8 @@ pub struct ClipboardWatcher {
     last_content: Arc<Mutex<Option<ClipboardContent>>>,
     /// 剪贴板实例
     clipboard: Arc<Mutex<arboard::Clipboard>>,
+    /// 剪贴板历史记录
+    history: Option<Arc<ClipboardHistory>>,
 }
 
 impl ClipboardWatcher {
@@ -67,7 +73,16 @@ impl ClipboardWatcher {
             stop_tx: None,
             last_content: Arc::new(Mutex::new(None)),
             clipboard,
+            history: None,
         })
+    }
+    
+    /// 创建带有历史记录功能的剪贴板监听器
+    pub fn with_history(max_history: usize, persistence_enabled: bool) -> Result<Self> {
+        let mut watcher = Self::new()?;
+        let history = Arc::new(ClipboardHistory::new(max_history, persistence_enabled));
+        watcher.history = Some(history);
+        Ok(watcher)
     }
 
     /// 开始监听剪贴板变化
@@ -84,6 +99,7 @@ impl ClipboardWatcher {
 
         let clipboard = self.clipboard.clone();
         let last_content = self.last_content.clone();
+        let history = self.history.clone();
 
         // 启动监听任务
         tokio::spawn(async move {
@@ -92,7 +108,7 @@ impl ClipboardWatcher {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        if let Err(e) = Self::check_arboard_clipboard_change(clipboard.clone(), last_content.clone(), &callback).await {
+                        if let Err(e) = Self::check_arboard_clipboard_change(clipboard.clone(), last_content.clone(), &callback, history.clone()).await {
                             error!("检查剪贴板变化出错: {e:?}");
                         }
                     }
@@ -201,12 +217,29 @@ impl ClipboardWatcher {
 
         Ok(())
     }
+    
+    /// 获取剪贴板历史记录
+    pub fn get_history(&self) -> Option<Arc<ClipboardHistory>> {
+        self.history.clone()
+    }
+    
+    /// 获取最近的历史记录条目
+    pub fn get_recent_history(&self, count: usize) -> Result<Vec<HistoryEntry>> {
+        if let Some(history) = &self.history {
+            let mut entries = history.get_all()?;
+            entries.truncate(count);
+            Ok(entries)
+        } else {
+            Ok(Vec::new())
+        }
+    }
 
     /// 检查剪贴板变化（使用arboard）
     async fn check_arboard_clipboard_change(
         clipboard: Arc<Mutex<arboard::Clipboard>>,
         last_content: Arc<Mutex<Option<ClipboardContent>>>,
         callback: &ClipboardCallback,
+        history: Option<Arc<ClipboardHistory>>,
     ) -> Result<()> {
         let current_content = {
             let mut clipboard_guard = match clipboard.lock() {
@@ -272,14 +305,22 @@ impl ClipboardWatcher {
         // 如果内容不同，调用回调
         if different && current_content != ClipboardContent::Empty {
             let event = ClipboardEvent {
-                content: current_content,
+                content: current_content.clone(),
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis() as u64,
             };
             
+            // 调用回调
             callback(event);
+            
+            // 如果启用了历史记录功能，添加到历史记录
+            if let Some(history) = history {
+                if let Err(e) = history.add(current_content) {
+                    warn!("添加到剪贴板历史记录失败: {e:?}");
+                }
+            }
         }
         
         Ok(())
